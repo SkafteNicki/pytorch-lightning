@@ -277,6 +277,14 @@ SSIM
 .. autoclass:: pytorch_lightning.metrics.regression.SSIM
     :noindex:
 
+
+MaxError
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: pytorch_lightning.metrics.regression.MaxError
+    :noindex:
+
+
 ******************
 Functional Metrics
 ******************
@@ -471,6 +479,13 @@ ssim [func]
 ~~~~~~~~~~~
 
 .. autofunction:: pytorch_lightning.metrics.functional.ssim
+    :noindex:
+
+
+max_error [func]
+~~~~~~~~~~~~~~~~
+
+.. autofunction:: pytorch_lightning.metrics.functional.max_error
     :noindex:
 
 
