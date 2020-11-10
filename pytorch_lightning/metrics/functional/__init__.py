@@ -45,3 +45,4 @@ from pytorch_lightning.metrics.functional.mean_squared_log_error import mean_squ
 from pytorch_lightning.metrics.functional.psnr import psnr
 from pytorch_lightning.metrics.functional.ssim import ssim
 from pytorch_lightning.metrics.functional.confusion_matrix import confusion_matrix
+from pytorch_lightning.metrics.functional.max_error import max_error
