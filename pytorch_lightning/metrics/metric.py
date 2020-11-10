@@ -14,18 +14,22 @@
 import functools
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional, Union
-from collections.abc import Mapping, Sequence
-from collections import namedtuple
+from collections.abc import Sequence
 from copy import deepcopy
-from distutils.version import LooseVersion
 
-import os
 import torch
 from torch import nn
 
 from pytorch_lightning.utilities.apply_func import apply_to_collection
 from pytorch_lightning.utilities.distributed import gather_all_tensors
-from pytorch_lightning.metrics.utils import _flatten, dim_zero_cat, dim_zero_mean, dim_zero_sum
+from pytorch_lightning.metrics.utils import (
+    _flatten,
+    dim_zero_cat,
+    dim_zero_mean,
+    dim_zero_sum,
+    dim_zero_max,
+    dim_zero_min
+)
 
 
 class Metric(nn.Module, ABC):
@@ -96,9 +100,9 @@ class Metric(nn.Module, ABC):
             default: Default value of the state; can either be a ``torch.Tensor`` or an empty list. The state will be
                 reset to this value when ``self.reset()`` is called.
             dist_reduce_fx (Optional): Function to reduce state accross mutliple processes in distributed mode.
-                If value is ``"sum"``, ``"mean"``, or ``"cat"``, we will use ``torch.sum``, ``torch.mean``,
-                and ``torch.cat`` respectively, each with argument ``dim=0``. The user can also pass a custom
-                function in this parameter.
+                If value is ``"sum"``, ``"mean"``, ``"cat"``, ``"max"``, or ``"min"``, we will use ``torch.sum``,
+                ``torch.mean``, ``torch.cat``, ``torch.max``, and ``torch.min`` respectively, each with argument
+                ``dim=0``. The user can also pass a custom function in this parameter.
             persistent (Optional): whether the state will be saved as part of the modules ``state_dict``.
 
         Note:
@@ -134,9 +138,13 @@ class Metric(nn.Module, ABC):
             dist_reduce_fx = dim_zero_mean
         elif dist_reduce_fx == "cat":
             dist_reduce_fx = dim_zero_cat
+        elif dist_reduce_fx == "max":
+            dist_reduce_fx = dim_zero_max
+        elif dist_reduce_fx == "min":
+            dist_reduce_fx = dim_zero_min
         elif dist_reduce_fx is not None and not isinstance(dist_reduce_fx, Callable):
             raise ValueError(
-                "`dist_reduce_fx` must be callable or one of ['mean', 'sum', 'cat', None]"
+                "`dist_reduce_fx` must be callable or one of ['mean', 'sum', 'cat', 'max', 'max', None]"
             )
 
         setattr(self, name, default)

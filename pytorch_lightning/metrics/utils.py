@@ -31,6 +31,14 @@ def dim_zero_mean(x):
     return torch.mean(x, dim=0)
 
 
+def dim_zero_max(x):
+    return torch.max(x, dim=0)
+
+
+def dim_zero_min(x):
+    return torch.min(x, dim=0)
+
+
 def _flatten(x):
     return [item for sublist in x for item in sublist]
 
