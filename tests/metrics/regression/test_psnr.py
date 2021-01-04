@@ -63,6 +63,7 @@ class TestPSNR(MetricTester):
             partial(sk_metric, data_range=data_range),
             metric_args={"data_range": data_range, "base": base},
             dist_sync_on_step=dist_sync_on_step,
+            check_for_float16=False
         )
 
     def test_psnr_functional(self, preds, target, sk_metric, data_range, base):
@@ -72,4 +73,10 @@ class TestPSNR(MetricTester):
             psnr,
             partial(sk_metric, data_range=data_range),
             metric_args={"data_range": data_range, "base": base},
+            check_for_float16=False
         )
+
+def test_error_on_float16_cpu():
+    # TODO: SSIM does not work with float16 on CPU due to missing support from torch.arange
+    with pytest.raises(RuntimeError):
+        psnr(_inputs[0].preds[0].half(), _inputs[0].target[0].half())

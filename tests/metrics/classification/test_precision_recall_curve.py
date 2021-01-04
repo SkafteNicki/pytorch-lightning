@@ -78,7 +78,8 @@ class TestPrecisionRecallCurve(MetricTester):
             metric_class=PrecisionRecallCurve,
             sk_metric=partial(sk_metric, num_classes=num_classes),
             dist_sync_on_step=dist_sync_on_step,
-            metric_args={"num_classes": num_classes}
+            metric_args={"num_classes": num_classes},
+            check_for_float16=False
         )
 
     def test_precision_recall_curve_functional(self, preds, target, sk_metric, num_classes):
@@ -88,6 +89,7 @@ class TestPrecisionRecallCurve(MetricTester):
             metric_functional=precision_recall_curve,
             sk_metric=partial(sk_metric, num_classes=num_classes),
             metric_args={"num_classes": num_classes},
+            check_for_float16=False
         )
 
 
@@ -102,3 +104,10 @@ def test_pr_curve(pred, target, expected_p, expected_r, expected_t):
     assert torch.allclose(p, torch.tensor(expected_p).to(p))
     assert torch.allclose(r, torch.tensor(expected_r).to(r))
     assert torch.allclose(t, torch.tensor(expected_t).to(t))
+
+
+def test_error_on_float16_cpu():
+    # TODO: PrecisionRecallCurve does not work with float16 on CPU due to missing support from torch.flip
+    with pytest.raises(RuntimeError):
+        precision_recall_curve(_binary_prob_inputs.preds.half(),
+                               _binary_prob_inputs.target)

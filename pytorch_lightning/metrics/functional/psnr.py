@@ -17,7 +17,8 @@ def _psnr_compute(
 
 
 def _psnr_update(preds: torch.Tensor, target: torch.Tensor) -> Tuple[torch.Tensor, int]:
-    sum_squared_error = torch.sum(torch.pow(preds - target, 2))
+    diff = preds - target
+    sum_squared_error = torch.sum(diff * diff)
     n_obs = target.numel()
     return sum_squared_error, n_obs
 

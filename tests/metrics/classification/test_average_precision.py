@@ -74,7 +74,8 @@ class TestAveragePrecision(MetricTester):
             metric_class=AveragePrecision,
             sk_metric=partial(sk_metric, num_classes=num_classes),
             dist_sync_on_step=dist_sync_on_step,
-            metric_args={"num_classes": num_classes}
+            metric_args={"num_classes": num_classes},
+            check_for_float16=False
         )
 
     def test_average_precision_functional(self, preds, target, sk_metric, num_classes):
@@ -84,6 +85,7 @@ class TestAveragePrecision(MetricTester):
             metric_functional=average_precision,
             sk_metric=partial(sk_metric, num_classes=num_classes),
             metric_args={"num_classes": num_classes},
+            check_for_float16=False
         )
 
 
@@ -100,3 +102,10 @@ class TestAveragePrecision(MetricTester):
 ])
 def test_average_precision(scores, target, expected_score):
     assert average_precision(scores, target) == expected_score
+
+
+def test_error_on_float16_cpu():
+    # TODO: AveragePrecision does not work with float16 on CPU due to missing support from torch.flip
+    with pytest.raises(RuntimeError):
+        average_precision(_binary_prob_inputs.preds.half(),
+                          _binary_prob_inputs.target)

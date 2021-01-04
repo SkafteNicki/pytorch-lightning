@@ -69,6 +69,7 @@ class TestMeanError(MetricTester):
             metric_class=metric_class,
             sk_metric=partial(sk_metric, sk_fn=sk_fn),
             dist_sync_on_step=dist_sync_on_step,
+            check_for_float16=True if metric_class != MeanSquaredLogError else False
         )
 
     def test_mean_error_functional(self, preds, target, sk_metric, metric_class, metric_functional, sk_fn):
@@ -77,6 +78,7 @@ class TestMeanError(MetricTester):
             target=target,
             metric_functional=metric_functional,
             sk_metric=partial(sk_metric, sk_fn=sk_fn),
+            check_for_float16=True if metric_class != MeanSquaredLogError else False
         )
 
 
@@ -85,3 +87,10 @@ def test_error_on_different_shape(metric_class):
     metric = metric_class()
     with pytest.raises(RuntimeError, match='Predictions and targets are expected to have the same shape'):
         metric(torch.randn(100,), torch.randn(50,))
+
+
+def test_error_on_float16_cpu():
+    # TODO: MeanSquaredLogError does not work with float16 on CPU due to missing support from torch.log1p
+    with pytest.raises(RuntimeError):
+        mean_squared_log_error(_single_target_inputs.preds.half(),
+                               _single_target_inputs.target.half())

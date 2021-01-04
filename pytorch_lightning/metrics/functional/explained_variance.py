@@ -29,10 +29,12 @@ def _explained_variance_compute(
         multioutput: str = 'uniform_average',
 ) -> Union[torch.Tensor, Sequence[torch.Tensor]]:
     diff_avg = torch.mean(target - preds, dim=0)
-    numerator = torch.mean((target - preds - diff_avg) ** 2, dim=0)
+    diff = target - preds - diff_avg
+    numerator = torch.mean(diff * diff, dim=0)
 
     target_avg = torch.mean(target, dim=0)
-    denominator = torch.mean((target - target_avg) ** 2, dim=0)
+    diff = target - target_avg
+    denominator = torch.mean(diff * diff, dim=0)
 
     # Take care of division by zero
     nonzero_numerator = numerator != 0

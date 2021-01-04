@@ -64,6 +64,7 @@ class TestSSIM(MetricTester):
             partial(_sk_metric, data_range=1.0, multichannel=multichannel),
             metric_args={"data_range": 1.0},
             dist_sync_on_step=dist_sync_on_step,
+            check_for_float16=False
         )
 
     def test_ssim_functional(self, preds, target, multichannel):
@@ -73,6 +74,7 @@ class TestSSIM(MetricTester):
             ssim,
             partial(_sk_metric, data_range=1.0, multichannel=multichannel),
             metric_args={"data_range": 1.0},
+            check_for_float16=False
         )
 
 
@@ -100,3 +102,9 @@ def test_ssim_invalid_inputs(pred, target, kernel, sigma):
     target = torch.rand(target)
     with pytest.raises(ValueError):
         ssim(pred, target, kernel, sigma)
+
+
+def test_error_on_float16_cpu():
+    # TODO: SSIM does not work with float16 on CPU due to missing support from torch.arange
+    with pytest.raises(RuntimeError):
+        ssim(_inputs[0].preds[0].half(), _inputs[0].target[0].half())

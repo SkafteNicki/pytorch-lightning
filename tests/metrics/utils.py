@@ -2,7 +2,7 @@ import os
 import pickle
 import sys
 from functools import partial
-from typing import Callable
+from typing import Callable, Any
 
 import numpy as np
 import pytest
@@ -59,6 +59,34 @@ def _assert_tensor(pl_result):
         assert isinstance(pl_result, torch.Tensor)
 
 
+def _assert_float16_gpu_support(
+        metric: Any,
+        preds: torch.Tensor,
+        target: torch.Tensor,
+        check_for_float16: bool = True,
+        check_for_gpu: bool = True
+):
+    # assert float16 works
+    if check_for_float16:
+        p = preds[0].half() if preds[0].is_floating_point() else preds[0]
+        t = target[0].half() if target[0].is_floating_point() else target[0]
+        _ = metric(p, t)
+
+    # assert that gpu computations works
+    if check_for_gpu and torch.cuda.is_available():
+        p = preds[0].cuda()
+        t = target[0].cuda()
+        metric_cuda = metric.cuda() if isinstance(metric, Metric) else metric
+        _ = metric_cuda(p, t)
+
+    # assert that gpu and float16 works
+    if check_for_float16 and check_for_gpu and torch.cuda.is_available():
+        p = preds[0].half().cuda() if preds[0].is_floating_point() else preds[0].cuda()
+        t = target[0].half().cuda() if target[0].is_floating_point() else target[0].cuda()
+        metric_cuda = metric.cuda() if isinstance(metric, Metric) else metric
+        _ = metric_cuda(p, t)
+
+
 def _class_test(
     rank: int,
     worldsize: int,
@@ -70,6 +98,8 @@ def _class_test(
     metric_args: dict = {},
     check_dist_sync_on_step: bool = True,
     check_batch: bool = True,
+    check_for_float16: bool = True,
+    check_for_gpu: bool = True,
     atol: float = 1e-8,
 ):
     """Utility function doing the actual comparison between lightning class metric
@@ -89,6 +119,9 @@ def _class_test(
             calculated per batch per device (and not just at the end)
         check_batch: bool, if true will check if the metric is also correctly
             calculated across devices for each batch (and not just at the end)
+        check_for_float16: if true, test if the metric work on float16 tensors
+        check_for_gpu: if true, test if the metric work on cuda
+        atol: absolute tolerance acceptable between results
     """
     # Instanciate lightning metric
     metric = metric_class(compute_on_step=True, dist_sync_on_step=dist_sync_on_step, **metric_args)
@@ -125,6 +158,9 @@ def _class_test(
     # assert after aggregation
     _assert_allclose(result, sk_result, atol=atol)
 
+    # run test for float16 and gpu support
+    _assert_float16_gpu_support(metric, preds, target, check_for_float16, check_for_gpu)
+
 
 def _functional_test(
     preds: torch.Tensor,
@@ -132,6 +168,8 @@ def _functional_test(
     metric_functional: Callable,
     sk_metric: Callable,
     metric_args: dict = {},
+    check_for_float16: bool = True,
+    check_for_gpu: bool = True,
     atol: float = 1e-8,
 ):
     """Utility function doing the actual comparison between lightning functional metric
@@ -143,6 +181,9 @@ def _functional_test(
         metric_functional: lightning metric functional that should be tested
         sk_metric: callable function that is used for comparison
         metric_args: dict with additional arguments used for class initialization
+        check_for_float16: if true, test if the metric work on float16 tensors
+        check_for_gpu: if true, test if the metric work on cuda
+        atol: absolute tolerance acceptable between results
     """
     metric = partial(metric_functional, **metric_args)
 
@@ -152,6 +193,9 @@ def _functional_test(
 
         # assert its the same
         _assert_allclose(lightning_result, sk_result, atol=atol)
+
+    # run test for float16 and gpu support
+    _assert_float16_gpu_support(metric, preds, target, check_for_float16, check_for_gpu)
 
 
 class MetricTester:
@@ -187,6 +231,8 @@ class MetricTester:
         metric_functional: Callable,
         sk_metric: Callable,
         metric_args: dict = {},
+        check_for_float16: bool = True,
+        check_for_gpu: bool = True,
     ):
         """Main method that should be used for testing functions. Call this inside
         testing method
@@ -197,6 +243,8 @@ class MetricTester:
             metric_functional: lightning metric class that should be tested
             sk_metric: callable function that is used for comparison
             metric_args: dict with additional arguments used for class initialization
+            check_for_float16: if true, test if the metric work on float16 tensors
+            check_for_gpu: if true, test if the metric work on cuda
         """
         _functional_test(
             preds=preds,
@@ -204,6 +252,8 @@ class MetricTester:
             metric_functional=metric_functional,
             sk_metric=sk_metric,
             metric_args=metric_args,
+            check_for_float16=check_for_float16,
+            check_for_gpu=check_for_gpu,
             atol=self.atol,
         )
 
@@ -218,6 +268,8 @@ class MetricTester:
         metric_args: dict = {},
         check_dist_sync_on_step: bool = True,
         check_batch: bool = True,
+        check_for_float16: bool = True,
+        check_for_gpu: bool = True,
     ):
         """Main method that should be used for testing class. Call this inside testing
         methods.
@@ -235,6 +287,8 @@ class MetricTester:
                 calculated per batch per device (and not just at the end)
             check_batch: bool, if true will check if the metric is also correctly
                 calculated across devices for each batch (and not just at the end)
+            check_for_float16: if true, test if the metric work on float16 tensors
+            check_for_gpu: if true, test if the metric work on cuda
         """
         if ddp:
             if sys.platform == "win32":
@@ -251,6 +305,8 @@ class MetricTester:
                     metric_args=metric_args,
                     check_dist_sync_on_step=check_dist_sync_on_step,
                     check_batch=check_batch,
+                    check_for_float16=check_for_float16,
+                    check_for_gpu=check_for_gpu,
                     atol=self.atol,
                 ),
                 [(rank, self.poolSize) for rank in range(self.poolSize)],
@@ -267,5 +323,7 @@ class MetricTester:
                 metric_args=metric_args,
                 check_dist_sync_on_step=check_dist_sync_on_step,
                 check_batch=check_batch,
+                check_for_float16=check_for_float16,
+                check_for_gpu=check_for_gpu,
                 atol=self.atol,
             )
