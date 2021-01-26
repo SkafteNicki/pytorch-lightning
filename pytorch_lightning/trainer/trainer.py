@@ -292,6 +292,9 @@ class Trainer(
                 and smaller datasets reload when running out of their data. In 'min_size' mode, all the datasets
                 reload when reaching the minimum length of datasets.
         """
+        # store how trainer was initialized
+        self._init_call = locals()
+        
         super().__init__()
         self._device_type = DeviceType.CPU
         self._distrib_type = None

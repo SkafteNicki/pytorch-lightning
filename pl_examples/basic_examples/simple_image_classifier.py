@@ -98,9 +98,9 @@ def cli_main():
     # ------------
     # training
     # ------------
-    trainer = pl.Trainer.from_argparse_args(args)
+    trainer = pl.Trainer.from_argparse_args(args, callbacks=pl.callbacks.BatchSizeScaler())
     trainer.fit(model, datamodule=dm)
-
+    
     # ------------
     # testing
     # ------------
