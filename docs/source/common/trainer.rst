@@ -1321,6 +1321,10 @@ By setting to False, you have to add your own distributed sampler:
     sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=True)
     dataloader = DataLoader(dataset, batch_size=32, sampler=sampler)
 
+.. note:: Initialization your own :class:`~torch.utils.data.distributed.DistributedSampler` should be done in
+    either the ``setup`` hook or the ``train/val/test_dataloader`` methods of your LightningModule as the 
+    distributed enviroment/process group would else have not been initialized yet.
+
 resume_from_checkpoint
 ^^^^^^^^^^^^^^^^^^^^^^
 
