@@ -103,7 +103,10 @@ Lightning adds the correct samplers when needed, so no need to explicitly add sa
     By default it will add ``shuffle=True`` for train sampler and ``shuffle=False`` for val/test sampler.
     ``drop_last`` in :class:`~torch.utils.data.distributed.DistributedSampler` will be set to its default value in PyTorch.
 
-.. note:: You can disable this behavior with ``Trainer(replace_sampler_ddp=False)``
+.. note:: You can disable this behavior with ``Trainer(replace_sampler_ddp=False)``. However, if you choose to
+    initialize any :class:`~torch.utils.data.distributed.DistributedSampler` yourself, make sure to either do
+    this in the ``setup`` hook or the ``train/val/test_dataloader`` methods as the distributed enviroment/process group
+    would else have not been initialized yet.
 
 .. note:: For iterable datasets, we don't do this automatically.
 
