@@ -14,7 +14,7 @@
 import inspect
 import os
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from functools import partial, update_wrapper
 from types import MethodType
 from typing import Any, Callable, Optional, TypeVar, Union
@@ -597,7 +597,7 @@ class LightningCLI:
         trainer_config = {**self._get(self.config_init, "trainer", default={}), **kwargs}
         return self._instantiate_trainer(trainer_config, extra_callbacks)
 
-    def _instantiate_trainer(self, config: dict[str, Any], callbacks: list[Callback]) -> Trainer:
+    def _instantiate_trainer(self, config: dict[str, Any], callbacks: Sequence[Callback]) -> Trainer:
         key = "callbacks"
         if key in config:
             if config[key] is None:
