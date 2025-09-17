@@ -481,9 +481,21 @@ class _FitLoop(_Loop):
 
         trainer._logger_connector.on_epoch_end()
 
-        if not self.restarting and self.epoch_loop._num_ready_batches_reached():
+        # Fix for issue #20495: Ensure LR schedulers are updated correctly regardless of check_val_every_n_epoch setting
+        # The original condition `not self.restarting and self.epoch_loop._num_ready_batches_reached()` was too restrictive.
+        # It would skip LR scheduler updates when restarting=True, even if the epoch was actually completed.
+        # The correct logic: update schedulers if training batches are done, except when restarting AND validation should have run but didn't
+        epoch_training_done = self.epoch_loop._num_ready_batches_reached()
+        validation_should_run = trainer.enable_validation and self.epoch_loop._should_check_val_epoch()
+        validation_was_skipped_due_to_restart = (
+            self.restarting and validation_should_run and not self.epoch_loop.val_loop._has_run
+        )
+
+        should_update_schedulers = epoch_training_done and not validation_was_skipped_due_to_restart
+
+        if should_update_schedulers:
             # since metric-based schedulers require access to metrics and those are not currently saved in the
-            # checkpoint, the plateau schedulers shouldn't be updated
+            # checkpoint, the plateau schedulers shouldn't be updated when restarting
             self.epoch_loop.update_lr_schedulers("epoch", update_plateau_schedulers=not self.restarting)
 
         # we manually decrease here because loggers expect that the same step is used when logging epoch-end metrics
