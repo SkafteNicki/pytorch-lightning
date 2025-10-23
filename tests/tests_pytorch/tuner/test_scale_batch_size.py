@@ -22,9 +22,11 @@ import torch
 from lightning_utilities.test.warning import no_warning_call
 from torch.utils.data import DataLoader
 
+import lightning.pytorch as pl
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks.batch_size_finder import BatchSizeFinder
 from lightning.pytorch.demos.boring_classes import BoringDataModule, BoringModel, RandomDataset
+from lightning.pytorch.tuner.batch_size_scaling import __scale_batch_dump_params, __scale_batch_restore_params
 from lightning.pytorch.tuner.tuning import Tuner
 from lightning.pytorch.utilities.exceptions import MisconfigurationException
 from tests_pytorch.helpers.runif import RunIf
@@ -583,3 +585,64 @@ def test_scale_batch_size_max_trials_modes(tmp_path, max_trials, mode, init_val,
         init_val=init_val,
     )
     assert result == expected
+
+
+def test_batch_size_scaling_loop_type_mismatch_fix():
+    """Test that batch size scaling parameter dump and restore handle loop type changes."""
+    model = BoringModel()
+    model.batch_size = 4
+
+    # Dump parameters from FitLoop, then restore when trainer is in validation mode
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        enable_progress_bar=False,
+        logger=False,
+        max_epochs=1,
+        limit_train_batches=0.8,
+        limit_val_batches=0.6,
+    )
+    trainer.strategy._lightning_module = model
+    trainer.state.fn = pl.trainer.states.TrainerFn.FITTING
+    trainer.state.stage = pl.trainer.states.RunningStage.TRAINING
+    dumped_params = __scale_batch_dump_params(trainer)
+
+    assert "loop_type" in dumped_params, "Fix should store loop_type"
+    assert dumped_params["loop_type"] == "_FitLoop", "Should identify FitLoop correctly"
+    assert "max_steps" in dumped_params
+    assert "limit_train_batches" in dumped_params
+    assert "limit_val_batches" in dumped_params
+    assert "limit_eval_batches" not in dumped_params, "FitLoop should not have limit_eval_batches"
+
+    trainer.state.fn = pl.trainer.states.TrainerFn.VALIDATING
+    trainer.state.stage = pl.trainer.states.RunningStage.VALIDATING
+
+    with (
+        patch.object(trainer.validate_loop, "reset"),
+        patch.object(trainer.fit_loop, "reset"),
+        patch("lightning.pytorch.tuner.batch_size_scaling._reset_dataloaders"),
+    ):
+        assert __scale_batch_restore_params(trainer, dumped_params) is None
+
+    # Reverse scenario - dump from EvaluationLoop, restore to FitLoop
+    trainer2 = Trainer(accelerator="cpu", devices=1, enable_progress_bar=False, logger=False, max_epochs=1)
+    trainer2.limit_eval_batches = 0.4
+    trainer2.strategy._lightning_module = model
+    trainer2.state.fn = pl.trainer.states.TrainerFn.VALIDATING
+    trainer2.state.stage = pl.trainer.states.RunningStage.VALIDATING
+    dumped_params_eval = __scale_batch_dump_params(trainer2)
+
+    assert dumped_params_eval["loop_type"] == "_EvaluationLoop"
+    assert "limit_eval_batches" in dumped_params_eval
+    assert "loop_verbose" in dumped_params_eval
+
+    trainer2.state.fn = pl.trainer.states.TrainerFn.FITTING
+    trainer2.state.stage = pl.trainer.states.RunningStage.TRAINING
+
+    # Mock the loop resets for trainer2
+    with (
+        patch.object(trainer2.validate_loop, "reset"),
+        patch.object(trainer2.fit_loop, "reset"),
+        patch("lightning.pytorch.tuner.batch_size_scaling._reset_dataloaders"),
+    ):
+        assert __scale_batch_restore_params(trainer2, dumped_params_eval) is None
