@@ -108,6 +108,10 @@ def __scale_batch_dump_params(trainer: "pl.Trainer") -> dict[str, Any]:
     }
     loop = trainer._active_loop
     assert loop is not None
+
+    # Store the loop type to ensure symmetric restore
+    dumped_params["loop_type"] = type(loop).__name__
+
     if isinstance(loop, pl.loops._FitLoop):
         dumped_params["max_steps"] = trainer.max_steps
         dumped_params["limit_train_batches"] = trainer.limit_train_batches
@@ -149,13 +153,17 @@ def __scale_batch_restore_params(trainer: "pl.Trainer", params: dict[str, Any]) 
     loop = trainer._active_loop
     assert loop is not None
     if isinstance(loop, pl.loops._FitLoop):
-        loop.epoch_loop.max_steps = params["max_steps"]
-        trainer.limit_train_batches = params["limit_train_batches"]
-        trainer.limit_val_batches = params["limit_val_batches"]
+        loop.epoch_loop.max_steps = params.get("max_steps", -1)
+        trainer.limit_train_batches = params.get("limit_train_batches", 1.0)
+        trainer.limit_val_batches = params.get("limit_val_batches", 1.0)
     elif isinstance(loop, pl.loops._EvaluationLoop):
         stage = trainer.state.stage
         assert stage is not None
-        setattr(trainer, f"limit_{stage.dataloader_prefix}_batches", params["limit_eval_batches"])
+        if "limit_eval_batches" in params:
+            setattr(trainer, f"limit_{stage.dataloader_prefix}_batches", params["limit_eval_batches"])
+        else:
+            default_limit = params.get("limit_val_batches", 1.0)
+            setattr(trainer, f"limit_{stage.dataloader_prefix}_batches", default_limit)
 
     loop.load_state_dict(deepcopy(params["loop_state_dict"]))
     loop.restarting = False
